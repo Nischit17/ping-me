@@ -1,6 +1,11 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import {
+  getFirestore,
+  initializeFirestore,
+  enableMultiTabIndexedDbPersistence,
+  CACHE_SIZE_UNLIMITED,
+} from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
 // Your web app's Firebase configuration
@@ -15,11 +20,23 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-const app = initializeApp(firebaseConfig);
+export const app = initializeApp(firebaseConfig);
 
-// Initialize Firebase services
+// Initialize Firebase Auth
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+
+// Initialize Firestore with optimized configuration
+export const db = initializeFirestore(app, {
+  cacheSizeBytes: CACHE_SIZE_UNLIMITED,
+});
+
+// Enable offline persistence
+try {
+  enableMultiTabIndexedDbPersistence(db);
+} catch (err) {
+  console.warn("Firestore persistence could not be enabled:", err);
+}
+
 export const storage = getStorage(app);
 
 export default app;

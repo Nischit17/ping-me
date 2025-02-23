@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -18,67 +18,68 @@ import Animated, {
 } from "react-native-reanimated";
 import { useAuth } from "../contexts/AuthContext";
 import { BackButton } from "../components/BackButton";
+import { chatService, Message } from "../services/chatService";
+import { format } from "date-fns";
 
 type RootStackParamList = {
-  Chat: { chatId: string; userName: string };
+  Chat: { chatId: string; userName: string; userId: string };
 };
 
 type ChatScreenRouteProp = RouteProp<RootStackParamList, "Chat">;
-
-interface Message {
-  id: string;
-  text: string;
-  senderId: string;
-  timestamp: string;
-  status: "sent" | "delivered" | "read";
-}
-
-const DUMMY_MESSAGES: Message[] = [
-  {
-    id: "1",
-    text: "Hey there!",
-    senderId: "other",
-    timestamp: "10:00 AM",
-    status: "read",
-  },
-  {
-    id: "2",
-    text: "Hi! How are you?",
-    senderId: "user",
-    timestamp: "10:01 AM",
-    status: "read",
-  },
-];
 
 export const ChatScreen = () => {
   const route = useRoute<ChatScreenRouteProp>();
   const navigation = useNavigation();
   const { user } = useAuth();
   const [message, setMessage] = useState("");
-  const [messages, setMessages] = useState(DUMMY_MESSAGES);
+  const [messages, setMessages] = useState<Message[]>([]);
   const flatListRef = useRef<FlatList>(null);
 
-  const sendMessage = () => {
-    if (!message.trim()) return;
+  useEffect(() => {
+    if (!user) return;
 
-    const newMessage: Message = {
-      id: Date.now().toString(),
-      text: message,
-      senderId: "user",
-      timestamp: new Date().toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-      status: "sent",
+    // Get or create chat session
+    const initializeChat = async () => {
+      const chatId = await chatService.getOrCreateChat(
+        user.uid,
+        route.params.userId
+      );
+
+      // Subscribe to messages
+      const unsubscribe = chatService.subscribeToMessages(
+        chatId,
+        (newMessages) => {
+          setMessages(newMessages);
+        }
+      );
+
+      return () => unsubscribe();
     };
 
-    setMessages([...messages, newMessage]);
-    setMessage("");
-    flatListRef.current?.scrollToEnd({ animated: true });
+    initializeChat();
+  }, [user, route.params.userId]);
+
+  const sendMessage = async () => {
+    if (!message.trim() || !user) return;
+
+    try {
+      await chatService.sendMessage(
+        route.params.chatId,
+        user.uid,
+        message.trim()
+      );
+      setMessage("");
+      flatListRef.current?.scrollToEnd({ animated: true });
+    } catch (error) {
+      console.error("Error sending message:", error);
+    }
   };
 
   const renderMessage = ({ item, index }: { item: Message; index: number }) => {
-    const isUser = item.senderId === "user";
+    const isUser = item.senderId === user?.uid;
+    const timestamp = item.createdAt
+      ? format(item.createdAt.toDate(), "h:mm a")
+      : "";
 
     return (
       <Animated.View
@@ -112,7 +113,7 @@ export const ChatScreen = () => {
                 isUser ? "text-white" : "text-gray-500"
               } text-xs font-[Poppins_400Regular] mr-1 opacity-80`}
             >
-              {item.timestamp}
+              {timestamp}
             </Text>
             {isUser && (
               <Ionicons

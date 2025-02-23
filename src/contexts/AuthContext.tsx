@@ -1,192 +1,176 @@
-import React, { createContext, useState, useContext, useEffect } from "react";
-import { auth, db } from "../config/firebase";
+import React, { createContext, useContext, useState, useEffect } from "react";
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
-  signOut,
+  signOut as firebaseSignOut,
   onAuthStateChanged,
   User as FirebaseUser,
   updateProfile,
 } from "firebase/auth";
-import {
-  doc,
-  setDoc,
-  getDoc,
-  enableIndexedDbPersistence,
-} from "firebase/firestore";
-import { User } from "../types";
+import { doc, setDoc, getDoc, updateDoc } from "firebase/firestore";
+import { auth, db } from "../config/firebase";
+import { User, AuthContextType } from "../types";
+import { notificationService } from "../services/notificationService";
 
-// Enable offline persistence
-enableIndexedDbPersistence(db).catch((err) => {
-  if (err.code === "failed-precondition") {
-    console.warn("Persistence failed - multiple tabs open");
-  } else if (err.code === "unimplemented") {
-    console.warn("Persistence not available");
+const AuthContext = createContext<AuthContextType | null>(null);
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error("useAuth must be used within an AuthProvider");
   }
-});
-
-interface AuthContextType {
-  user: User | null;
-  loading: boolean;
-  signUp: (
-    email: string,
-    password: string,
-    displayName: string
-  ) => Promise<void>;
-  signIn: (email: string, password: string) => Promise<void>;
-  logout: () => Promise<void>;
-  updateUserProfile: (displayName: string, photoURL: string) => Promise<void>;
-}
-
-const AuthContext = createContext<AuthContextType>({} as AuthContextType);
-
-export const useAuth = () => useContext(AuthContext);
+  return context;
+};
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        try {
-          const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
+      try {
+        if (firebaseUser) {
+          const userRef = doc(db, "users", firebaseUser.uid);
+          const userDoc = await getDoc(userRef);
+
           if (userDoc.exists()) {
-            const userData = userDoc.data() as User;
-            setUser(userData);
+            setUser(userDoc.data() as User);
           } else {
-            // If user document doesn't exist, create one
+            // Create user document if it doesn't exist
             const userData: User = {
               id: firebaseUser.uid,
+              uid: firebaseUser.uid,
               email: firebaseUser.email!,
               displayName:
                 firebaseUser.displayName || firebaseUser.email!.split("@")[0],
-              photoURL: firebaseUser.photoURL,
+              photoURL: firebaseUser.photoURL || null,
               createdAt: new Date(),
             };
-            await setDoc(doc(db, "users", firebaseUser.uid), userData);
+            await setDoc(userRef, userData);
             setUser(userData);
           }
-        } catch (error: any) {
-          if (error.code === "unavailable") {
-            // If offline, use the Firebase user data as fallback
-            const userData: User = {
-              id: firebaseUser.uid,
-              email: firebaseUser.email!,
-              displayName:
-                firebaseUser.displayName || firebaseUser.email!.split("@")[0],
-              photoURL: firebaseUser.photoURL,
-              createdAt: new Date(),
-            };
-            setUser(userData);
-          }
+        } else {
+          setUser(null);
         }
-      } else {
-        setUser(null);
+      } catch (err) {
+        console.error("Error in auth state change:", err);
+        setError(err instanceof Error ? err.message : "An error occurred");
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     });
 
-    return unsubscribe;
+    return () => unsubscribe();
   }, []);
 
-  const signUp = async (
-    email: string,
-    password: string,
-    displayName: string
-  ) => {
+  const signUp = async (email: string, password: string) => {
     try {
-      const userCredential = await createUserWithEmailAndPassword(
+      setError(null);
+      const { user: firebaseUser } = await createUserWithEmailAndPassword(
         auth,
         email,
         password
       );
-      const { user: firebaseUser } = userCredential;
-
-      await updateProfile(firebaseUser, { displayName });
-
-      const userData: User = {
-        id: firebaseUser.uid,
-        email: firebaseUser.email!,
-        displayName: displayName,
-        photoURL: null,
-        createdAt: new Date(),
-      };
-
-      await setDoc(doc(db, "users", firebaseUser.uid), userData);
+      const userData = await createUserDocument(firebaseUser);
       setUser(userData);
-    } catch (error) {
-      throw error;
+    } catch (err) {
+      console.error("Error signing up:", err);
+      setError(err instanceof Error ? err.message : "Failed to sign up");
+      throw err;
     }
   };
 
   const signIn = async (email: string, password: string) => {
     try {
-      const userCredential = await signInWithEmailAndPassword(
+      setError(null);
+      const { user: firebaseUser } = await signInWithEmailAndPassword(
         auth,
         email,
         password
       );
-      const { user: firebaseUser } = userCredential;
+      const userRef = doc(db, "users", firebaseUser.uid);
+      const userDoc = await getDoc(userRef);
 
-      // Check if user document exists
-      const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
-      if (!userDoc.exists()) {
-        // Create user document if it doesn't exist
-        const userData: User = {
-          id: firebaseUser.uid,
-          email: firebaseUser.email!,
-          displayName: firebaseUser.displayName || email.split("@")[0],
-          photoURL: null,
-          createdAt: new Date(),
-        };
-        await setDoc(doc(db, "users", firebaseUser.uid), userData);
+      if (userDoc.exists()) {
+        const userData = userDoc.data() as User;
+        const pushToken =
+          await notificationService.registerForPushNotifications();
+
+        if (pushToken && userData.pushToken !== pushToken) {
+          await updateDoc(userRef, { pushToken });
+          userData.pushToken = pushToken;
+        }
+
+        setUser(userData);
       }
-    } catch (error) {
-      throw error;
+    } catch (err) {
+      console.error("Error signing in:", err);
+      setError(err instanceof Error ? err.message : "Failed to sign in");
+      throw err;
     }
   };
 
-  const logout = async () => {
+  const signOut = async () => {
     try {
-      await signOut(auth);
+      setError(null);
+      if (user?.uid) {
+        await updateDoc(doc(db, "users", user.uid), { pushToken: null });
+      }
+      await firebaseSignOut(auth);
       setUser(null);
-    } catch (error) {
-      throw error;
+    } catch (err) {
+      console.error("Error signing out:", err);
+      setError(err instanceof Error ? err.message : "Failed to sign out");
+      throw err;
     }
   };
 
-  const updateUserProfile = async (displayName: string, photoURL: string) => {
+  const createUserDocument = async (firebaseUser: FirebaseUser) => {
+    const userRef = doc(db, "users", firebaseUser.uid);
+    const pushToken = await notificationService.registerForPushNotifications();
+
+    const userData: User = {
+      id: firebaseUser.uid,
+      uid: firebaseUser.uid,
+      email: firebaseUser.email!,
+      displayName:
+        firebaseUser.displayName || firebaseUser.email!.split("@")[0],
+      photoURL: firebaseUser.photoURL || null,
+      createdAt: new Date(),
+      pushToken,
+    };
+
+    await setDoc(userRef, userData);
+    return userData;
+  };
+
+  const updateProfile = async (data: Partial<User>) => {
+    if (!user?.uid) return;
+
     try {
-      const currentUser = auth.currentUser;
-      if (currentUser) {
-        await updateProfile(currentUser, { displayName, photoURL });
-        await setDoc(
-          doc(db, "users", currentUser.uid),
-          { displayName, photoURL },
-          { merge: true }
-        );
-        setUser((prev) => (prev ? { ...prev, displayName, photoURL } : null));
-      }
-    } catch (error) {
-      throw error;
+      setError(null);
+      const userRef = doc(db, "users", user.uid);
+      await updateDoc(userRef, data);
+      setUser((prev) => (prev ? { ...prev, ...data } : null));
+    } catch (err) {
+      console.error("Error updating profile:", err);
+      setError(err instanceof Error ? err.message : "Failed to update profile");
+      throw err;
     }
   };
 
   const value = {
     user,
     loading,
-    signUp,
+    error,
     signIn,
-    logout,
-    updateUserProfile,
+    signUp,
+    signOut,
+    updateProfile,
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {!loading && children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
