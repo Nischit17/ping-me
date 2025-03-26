@@ -10,7 +10,7 @@ Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
     shouldPlaySound: true,
-    shouldSetBadge: false,
+    shouldSetBadge: true,
     priority: Notifications.AndroidNotificationPriority.HIGH,
   }),
 });
@@ -49,7 +49,7 @@ export const notificationService = {
         });
       }
 
-      // Get the token without project ID for development
+      // Get the token
       const token = await Notifications.getDevicePushTokenAsync();
       return token.data;
     } catch (error) {
@@ -72,19 +72,21 @@ export const notificationService = {
   async sendPushNotification(
     expoPushToken: string,
     title: string,
-    body: string
+    body: string,
+    data?: any
   ) {
     if (!expoPushToken) return;
 
     try {
       const message = {
         to: expoPushToken,
-        sound: Platform.OS === "android" ? "default" : null,
+        sound: Platform.OS === "android" ? "default" : "default",
         title,
         body,
-        data: { type: "message" },
+        data: { type: "message", ...data },
         priority: "high",
         channelId: "default",
+        badge: 1,
       };
 
       const response = await fetch("https://exp.host/--/api/v2/push/send", {

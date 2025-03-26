@@ -22,6 +22,8 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 export const EditProfileScreen = () => {
   const { user, updateUserProfile } = useAuth();
   const [displayName, setDisplayName] = useState(user?.displayName || "");
+  const [bio, setBio] = useState(user?.bio || "");
+  const [phoneNumber, setPhoneNumber] = useState(user?.phoneNumber || "");
   const [photoURL, setPhotoURL] = useState(user?.photoURL || null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -62,15 +64,32 @@ export const EditProfileScreen = () => {
     }
   };
 
-  const handleSave = async () => {
+  const validateForm = () => {
     if (!displayName.trim()) {
       setError("Display name is required");
-      return;
+      return false;
     }
+
+    if (phoneNumber && !/^\+?[\d\s-()]{10,}$/.test(phoneNumber)) {
+      setError("Please enter a valid phone number");
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleSave = async () => {
+    if (!validateForm()) return;
 
     try {
       setLoading(true);
-      await updateUserProfile(displayName.trim(), photoURL || "");
+      setError("");
+      await updateUserProfile({
+        displayName: displayName.trim(),
+        bio: bio.trim(),
+        phoneNumber: phoneNumber.trim(),
+        photoURL: photoURL || "",
+      });
       navigation.goBack();
     } catch (error) {
       console.error("Error updating profile:", error);
@@ -128,6 +147,24 @@ export const EditProfileScreen = () => {
               placeholder="Enter your display name"
               error={error}
               autoCapitalize="words"
+            />
+
+            <AnimatedInput
+              label="Bio"
+              value={bio}
+              onChangeText={setBio}
+              placeholder="Tell us about yourself"
+              multiline
+              numberOfLines={3}
+              textAlignVertical="top"
+            />
+
+            <AnimatedInput
+              label="Phone Number"
+              value={phoneNumber}
+              onChangeText={setPhoneNumber}
+              placeholder="Enter your phone number"
+              keyboardType="phone-pad"
             />
           </Animated.View>
 

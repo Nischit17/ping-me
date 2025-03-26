@@ -55,18 +55,24 @@ export const NewChatScreen = () => {
     setLoading(true);
     try {
       const usersRef = collection(db, "users");
-      const q = query(usersRef, orderBy("email"), limit(50));
+      const q = query(usersRef, where("isActive", "==", true), limit(50));
 
       const querySnapshot = await getDocs(q);
+      console.log("Total users found:", querySnapshot.size);
+
       const usersList = querySnapshot.docs
-        .map(
-          (doc) =>
-            ({
-              id: doc.id,
-              ...doc.data(),
-            } as User)
-        )
-        .filter((user) => user.uid !== currentUser.uid);
+        .map((doc) => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            ...data,
+          } as User;
+        })
+        .filter((user) => user.uid !== currentUser.uid)
+        .sort((a, b) => (a.email || "").localeCompare(b.email || ""));
+
+      console.log("Filtered users:", usersList.length);
+      console.log("Users list:", usersList);
 
       setUsers(usersList);
     } catch (error) {
@@ -86,18 +92,10 @@ export const NewChatScreen = () => {
     setLoading(true);
     try {
       const usersRef = collection(db, "users");
-      const searchLower = searchText.toLowerCase();
-
-      // Search by email
-      const q = query(
-        usersRef,
-        orderBy("email"),
-        where("email", ">=", searchLower),
-        where("email", "<=", searchLower + "\uf8ff"),
-        limit(10)
-      );
+      const q = query(usersRef, where("isActive", "==", true), limit(50));
 
       const querySnapshot = await getDocs(q);
+      const searchLower = searchText.toLowerCase();
       const usersList = querySnapshot.docs
         .map(
           (doc) =>
@@ -106,7 +104,12 @@ export const NewChatScreen = () => {
               ...doc.data(),
             } as User)
         )
-        .filter((user) => user.uid !== currentUser.uid);
+        .filter(
+          (user) =>
+            user.uid !== currentUser.uid &&
+            (user.email?.toLowerCase().includes(searchLower) ||
+              user.displayName?.toLowerCase().includes(searchLower))
+        );
 
       setUsers(usersList);
     } catch (error) {
@@ -222,9 +225,26 @@ export const NewChatScreen = () => {
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ paddingBottom: 20 }}
           ListEmptyComponent={() => (
-            <Text className="text-center text-gray-500 font-[Poppins_400Regular]">
-              {loading ? "Loading users..." : "No users found"}
-            </Text>
+            <View className="flex-1 items-center justify-center py-8">
+              {loading ? (
+                <View className="items-center">
+                  <LoadingSpinner />
+                  <Text className="text-gray-500 font-[Poppins_400Regular] mt-2">
+                    Loading users...
+                  </Text>
+                </View>
+              ) : (
+                <View className="items-center">
+                  <Ionicons name="people-outline" size={48} color="#9CA3AF" />
+                  <Text className="text-gray-500 font-[Poppins_400Regular] mt-2">
+                    No users found
+                  </Text>
+                  <Text className="text-gray-400 font-[Poppins_400Regular] text-sm">
+                    Try searching with a different term
+                  </Text>
+                </View>
+              )}
+            </View>
           )}
         />
       </View>

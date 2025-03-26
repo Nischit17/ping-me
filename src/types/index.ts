@@ -7,6 +7,10 @@ export interface User {
   createdAt?: Date;
   lastSeen?: Date;
   pushToken?: string | null;
+  isOnline?: boolean;
+  bio?: string;
+  phoneNumber?: string;
+  isActive?: boolean;
 }
 
 export interface AuthContextType {
@@ -16,7 +20,8 @@ export interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
-  updateProfile: (data: Partial<User>) => Promise<void>;
+  logout: () => Promise<void>;
+  updateUserProfile: (data: Partial<User>) => Promise<void>;
 }
 
 export interface Message {

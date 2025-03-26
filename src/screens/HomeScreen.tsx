@@ -74,53 +74,70 @@ export const HomeScreen = () => {
   const renderChatItem = ({ item }: { item: Chat }) => {
     const otherUserId = item.participants.find((id) => id !== user?.uid);
     const otherUser = otherUserId ? chatUsers[otherUserId] : null;
-    const userName =
-      otherUser?.displayName || otherUser?.email?.split("@")[0] || "Unknown";
-    const lastMessage = item.lastMessage?.text || "No messages yet";
+    const unreadCount = item.unreadCount?.[user?.uid || ""] || 0;
+    const lastMessageText = item.lastMessage?.text || "No messages yet";
     const timestamp = item.lastMessage?.createdAt
       ? format(item.lastMessage.createdAt.toDate(), "h:mm a")
       : "";
+    const trimmedMessage =
+      lastMessageText.length > 30
+        ? `${lastMessageText.substring(0, 30)}...`
+        : lastMessageText;
 
     return (
       <TouchableOpacity
+        className="flex-row items-center p-4 bg-white border-b border-gray-100"
         onPress={() =>
           navigation.navigate("Chat", {
             chatId: item.id,
-            userName,
+            userName:
+              otherUser?.displayName ||
+              otherUser?.email?.split("@")[0] ||
+              "Unknown",
             userId: otherUserId || "",
           })
         }
-        className="flex-row items-center px-4 py-3 bg-white rounded-xl mb-3"
       >
-        <View className="w-12 h-12 rounded-full bg-primary items-center justify-center mr-4">
-          {otherUser?.photoURL ? (
-            <Image
-              source={{ uri: otherUser.photoURL }}
-              className="w-12 h-12 rounded-full"
-            />
-          ) : (
-            <Text className="text-primaryDark text-xl font-[Poppins_500Medium]">
-              {userName[0].toUpperCase()}
-            </Text>
-          )}
-        </View>
-        <View className="flex-1">
-          <View className="flex-row justify-between items-center">
-            <Text className="text-gray-800 font-[Poppins_500Medium] text-base">
-              {userName}
-            </Text>
-            {timestamp && (
-              <Text className="text-gray-500 text-xs font-[Poppins_400Regular]">
-                {timestamp}
+        <View className="flex-1 flex-row items-center">
+          <View className="w-12 h-12 rounded-full bg-primary items-center justify-center mr-4">
+            {otherUser?.photoURL ? (
+              <Image
+                source={{ uri: otherUser.photoURL }}
+                className="w-12 h-12 rounded-full"
+              />
+            ) : (
+              <Text className="text-primaryDark text-xl font-[Poppins_500Medium]">
+                {otherUser?.displayName?.[0].toUpperCase() || "U"}
               </Text>
             )}
           </View>
-          <Text
-            numberOfLines={1}
-            className="text-gray-500 font-[Poppins_400Regular]"
-          >
-            {lastMessage}
-          </Text>
+          <View className="ml-4 flex-1">
+            <View className="flex-row justify-between items-center">
+              <Text className="text-base font-[Poppins_600SemiBold] text-gray-900">
+                {otherUser?.displayName ||
+                  otherUser?.email?.split("@")[0] ||
+                  "Unknown"}
+              </Text>
+              {timestamp && (
+                <Text className="text-xs text-gray-500 font-[Poppins_400Regular]">
+                  {timestamp}
+                </Text>
+              )}
+            </View>
+            <Text
+              className="text-sm font-[Poppins_400Regular] text-gray-500"
+              numberOfLines={1}
+            >
+              {trimmedMessage}
+            </Text>
+          </View>
+          {unreadCount > 0 && (
+            <View className="bg-primary rounded-full h-6 w-6 items-center justify-center ml-2">
+              <Text className="text-white text-xs font-[Poppins_600SemiBold]">
+                {unreadCount}
+              </Text>
+            </View>
+          )}
         </View>
       </TouchableOpacity>
     );

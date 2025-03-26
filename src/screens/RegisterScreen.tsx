@@ -71,7 +71,7 @@ export const RegisterScreen = () => {
 
     try {
       setLoading(true);
-      await signUp(email, password, email.split("@")[0]);
+      await signUp(email, password);
     } catch (error: any) {
       if (error.code === "auth/email-already-in-use") {
         setErrors({ email: "Email is already registered" });

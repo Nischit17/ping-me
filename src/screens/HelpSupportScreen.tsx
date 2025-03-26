@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -11,18 +11,41 @@ import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { BackButton } from "../components/BackButton";
 
-const FAQItem = ({
-  question,
-  answer,
-}: {
+interface FAQItem {
   question: string;
   answer: string;
+}
+
+const FAQ = ({
+  item,
+  isOpen,
+  onToggle,
+}: {
+  item: FAQItem;
+  isOpen: boolean;
+  onToggle: () => void;
 }) => (
-  <View className="bg-white rounded-xl p-4 mb-4">
-    <Text className="text-gray-800 font-[Poppins_500Medium] text-base mb-2">
-      {question}
-    </Text>
-    <Text className="text-gray-600 font-[Poppins_400Regular]">{answer}</Text>
+  <View className="mb-4 bg-white rounded-xl overflow-hidden">
+    <TouchableOpacity
+      onPress={onToggle}
+      className="flex-row items-center justify-between p-4"
+    >
+      <Text className="flex-1 text-gray-800 font-[Poppins_500Medium]">
+        {item.question}
+      </Text>
+      <Ionicons
+        name={isOpen ? "chevron-up" : "chevron-down"}
+        size={20}
+        color="#9CA3AF"
+      />
+    </TouchableOpacity>
+    {isOpen && (
+      <View className="p-4 pt-0">
+        <Text className="text-gray-600 font-[Poppins_400Regular]">
+          {item.answer}
+        </Text>
+      </View>
+    )}
   </View>
 );
 
@@ -56,24 +79,46 @@ const ContactOption = ({
 
 export const HelpSupportScreen = () => {
   const navigation = useNavigation();
+  const [openFAQs, setOpenFAQs] = useState<number[]>([]);
 
-  const faqs = [
+  const faqs: FAQItem[] = [
     {
       question: "How do I start a new chat?",
       answer:
-        "Tap the plus button in the bottom right corner of the home screen to start a new conversation.",
+        "Tap the '+' button on the Chats screen to see a list of available users. Select a user to start a new conversation.",
     },
     {
-      question: "Can I delete messages?",
+      question: "How do I edit or delete messages?",
       answer:
-        "Yes, you can delete individual messages by long-pressing on them and selecting 'Delete'.",
+        "Long-press on any message you've sent to see options for editing or deleting it. Edited messages will show an '(edited)' indicator. Deleted messages will be replaced with 'This message was deleted'.",
     },
     {
-      question: "How do I change my profile picture?",
+      question: "How do I know if someone has read my message?",
       answer:
-        "Go to Profile > Edit Profile and tap on your profile picture to upload a new one.",
+        "Message status is shown with checkmarks: one checkmark means sent, double gray checkmarks mean delivered, and double green checkmarks mean read.",
+    },
+    {
+      question: "How can I tell if someone is online?",
+      answer:
+        "Users' online status is shown in their profile and in the chat. A green dot indicates they're online, and you can see their last active time when they're offline.",
+    },
+    {
+      question: "How do I edit my profile?",
+      answer:
+        "Go to your profile settings to update your display name, bio, phone number, profile picture, and other information.",
+    },
+    {
+      question: "Is my data secure?",
+      answer:
+        "Yes, we use encryption to protect your messages and personal information. Your messages are only accessible to you and the intended recipient. Deleted messages are permanently removed from our servers.",
     },
   ];
+
+  const toggleFAQ = (index: number) => {
+    setOpenFAQs((prev) =>
+      prev.includes(index) ? prev.filter((i) => i !== index) : [...prev, index]
+    );
+  };
 
   return (
     <View className="flex-1 bg-background">
@@ -123,7 +168,12 @@ export const HelpSupportScreen = () => {
           </Text>
 
           {faqs.map((faq, index) => (
-            <FAQItem key={index} question={faq.question} answer={faq.answer} />
+            <FAQ
+              key={index}
+              item={faq}
+              isOpen={openFAQs.includes(index)}
+              onToggle={() => toggleFAQ(index)}
+            />
           ))}
         </Animated.View>
       </ScrollView>

@@ -37,7 +37,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           const userDoc = await getDoc(userRef);
 
           if (userDoc.exists()) {
-            setUser(userDoc.data() as User);
+            const userData = userDoc.data() as User;
+            // Update active status and last seen
+            const updates = {
+              isActive: true,
+              lastSeen: new Date(),
+            };
+            await updateDoc(userRef, updates);
+            setUser({ ...userData, ...updates });
           } else {
             // Create user document if it doesn't exist
             const userData: User = {
@@ -48,11 +55,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
                 firebaseUser.displayName || firebaseUser.email!.split("@")[0],
               photoURL: firebaseUser.photoURL || null,
               createdAt: new Date(),
+              isActive: true,
+              lastSeen: new Date(),
             };
             await setDoc(userRef, userData);
             setUser(userData);
           }
         } else {
+          if (user?.uid) {
+            // Update status to offline when signing out
+            await updateDoc(doc(db, "users", user.uid), {
+              isActive: false,
+              lastSeen: new Date(),
+            });
+          }
           setUser(null);
         }
       } catch (err) {
@@ -63,8 +79,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       }
     });
 
+    // Set up presence system
+    if (user?.uid) {
+      const userRef = doc(db, "users", user.uid);
+      const presenceInterval = setInterval(async () => {
+        try {
+          await updateDoc(userRef, {
+            isActive: true,
+            lastSeen: new Date(),
+          });
+        } catch (error) {
+          console.error("Error updating presence:", error);
+        }
+      }, 30000); // Update every 30 seconds
+
+      return () => {
+        clearInterval(presenceInterval);
+        unsubscribe();
+      };
+    }
+
     return () => unsubscribe();
-  }, []);
+  }, [user?.uid]);
 
   const signUp = async (email: string, password: string) => {
     try {
@@ -99,12 +135,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         const pushToken =
           await notificationService.registerForPushNotifications();
 
-        if (pushToken && userData.pushToken !== pushToken) {
-          await updateDoc(userRef, { pushToken });
-          userData.pushToken = pushToken;
-        }
+        // Update user data with active status and new push token
+        const updates = {
+          isActive: true,
+          ...(pushToken && userData.pushToken !== pushToken
+            ? { pushToken }
+            : {}),
+        };
 
-        setUser(userData);
+        await updateDoc(userRef, updates);
+        setUser({ ...userData, ...updates });
       }
     } catch (err) {
       console.error("Error signing in:", err);
@@ -117,7 +157,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     try {
       setError(null);
       if (user?.uid) {
-        await updateDoc(doc(db, "users", user.uid), { pushToken: null });
+        await updateDoc(doc(db, "users", user.uid), {
+          pushToken: null,
+          isActive: false,
+        });
       }
       await firebaseSignOut(auth);
       setUser(null);
@@ -141,6 +184,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       photoURL: firebaseUser.photoURL || null,
       createdAt: new Date(),
       pushToken,
+      isActive: true,
+      bio: "",
+      phoneNumber: "",
     };
 
     await setDoc(userRef, userData);
@@ -162,14 +208,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
-  const value = {
+  const value: AuthContextType = {
     user,
     loading,
     error,
     signIn,
     signUp,
     signOut,
-    updateProfile,
+    logout: signOut,
+    updateUserProfile: updateProfile,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -7,30 +7,42 @@ import Animated, {
 } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
 import { shakeAnimation } from "../utils/animations";
+import { FadeInDown } from "react-native-reanimated";
 
 const AnimatedView = Animated.createAnimatedComponent(View);
 
-interface AnimatedInputProps {
+export interface AnimatedInputProps {
   label: string;
   value: string;
   onChangeText: (text: string) => void;
-  placeholder: string;
-  secureTextEntry?: boolean;
-  keyboardType?: "default" | "email-address";
+  placeholder?: string;
   error?: string;
+  secureTextEntry?: boolean;
   autoCapitalize?: "none" | "sentences" | "words" | "characters";
+  multiline?: boolean;
+  numberOfLines?: number;
+  textAlignVertical?: "auto" | "top" | "bottom" | "center";
+  keyboardType?:
+    | "default"
+    | "email-address"
+    | "numeric"
+    | "phone-pad"
+    | "number-pad";
 }
 
-export const AnimatedInput = ({
+export const AnimatedInput: React.FC<AnimatedInputProps> = ({
   label,
   value,
   onChangeText,
   placeholder,
-  secureTextEntry,
-  keyboardType = "default",
   error,
-  autoCapitalize = "none",
-}: AnimatedInputProps) => {
+  secureTextEntry,
+  autoCapitalize,
+  multiline,
+  numberOfLines,
+  textAlignVertical,
+  keyboardType,
+}) => {
   const [isFocused, setIsFocused] = useState(false);
   const [showPassword, setShowPassword] = useState(!secureTextEntry);
   const translateX = useSharedValue(0);
@@ -68,24 +80,33 @@ export const AnimatedInput = ({
   }, [error]);
 
   return (
-    <AnimatedView style={containerStyle}>
-      <Text className="text-gray-700 mb-2 font-[Poppins_400Regular]">
+    <View className="mb-4">
+      <Animated.Text
+        entering={FadeInDown.delay(200).springify()}
+        className="text-gray-600 font-[Poppins_500Medium] mb-2"
+      >
         {label}
-      </Text>
-      <AnimatedView
-        style={borderStyle}
-        className="relative bg-gray-50 rounded-xl border"
+      </Animated.Text>
+      <Animated.View
+        entering={FadeInDown.delay(300).springify()}
+        className={`bg-white rounded-xl px-4 py-3 ${
+          error ? "border border-red-500" : ""
+        }`}
       >
         <TextInput
-          className="p-4 font-[Poppins_400Regular]"
-          placeholder={placeholder}
+          className="text-gray-800 font-[Poppins_400Regular]"
           value={value}
           onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor="#9CA3AF"
+          secureTextEntry={secureTextEntry && !showPassword}
+          autoCapitalize={autoCapitalize}
+          multiline={multiline}
+          numberOfLines={numberOfLines}
+          textAlignVertical={textAlignVertical}
+          keyboardType={keyboardType}
           onFocus={handleFocus}
           onBlur={handleBlur}
-          secureTextEntry={secureTextEntry && !showPassword}
-          keyboardType={keyboardType}
-          autoCapitalize={autoCapitalize}
         />
         {secureTextEntry && (
           <Pressable
@@ -99,12 +120,15 @@ export const AnimatedInput = ({
             />
           </Pressable>
         )}
-      </AnimatedView>
+      </Animated.View>
       {error && (
-        <Text className="text-red-500 mt-1 font-[Poppins_400Regular] text-sm">
+        <Animated.Text
+          entering={FadeInDown.delay(400).springify()}
+          className="text-red-500 text-sm font-[Poppins_400Regular] mt-1"
+        >
           {error}
-        </Text>
+        </Animated.Text>
       )}
-    </AnimatedView>
+    </View>
   );
 };

@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, TouchableOpacity, ScrollView } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, Alert } from "react-native";
 import { useAuth } from "../contexts/AuthContext";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeInDown } from "react-native-reanimated";
@@ -57,8 +57,12 @@ export const ProfileScreen = () => {
   const handleLogout = async () => {
     try {
       await logout();
+      // Navigation will be handled by the Navigation component in App.tsx
     } catch (error) {
       console.error("Logout error:", error);
+      Alert.alert("Error", "Failed to logout. Please try again.", [
+        { text: "OK" },
+      ]);
     }
   };
 
